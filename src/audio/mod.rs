@@ -115,6 +115,21 @@ fn sing(mix: &Mix, voice: &Voice, notes: &[mml::Note], lang: phoneme::Lang, star
     Ok((first, voice::render(voice, &segments, r)))
 }
 
+/// Ends stereo `s` (interleaved) after `frames`, fading out (a raised
+/// cosine) over the last `fade` frames before that.
+fn cut(s: &mut Vec<f32>, frames: usize, fade: f64) {
+    s.truncate(frames * 2);
+    let n = s.len() / 2;
+    let fade = (fade.round() as usize).min(n);
+    for i in 0..fade {
+        let x = (i as f64 + 0.5) / fade as f64; // 0 at the fade's start, 1 at the end
+        let g = (0.5 * (1.0 + (std::f64::consts::PI * x).cos())) as f32;
+        let k = n - fade + i;
+        s[2 * k] *= g;
+        s[2 * k + 1] *= g;
+    }
+}
+
 /// Mixes everything into `frames` stereo samples at `rate` (interleaved L R).
 pub fn render(mix: &Mix, events: &[Event], ctx: &TimeContext, rate: u32, frames: usize) -> Vec<f32> {
     let r = rate as f64;
@@ -139,7 +154,19 @@ pub fn render(mix: &Mix, events: &[Event], ctx: &TimeContext, rate: u32, frames:
             let gain = clip.gain * track.gain;
             match &clip.body {
                 ClipBody::File { path } => match input::load(path, rate) {
-                    Ok(s) => master.add_stereo(start, &s, gain, track.pan),
+                    Ok(mut s) => {
+                        // where it ends: until=, else the video's end when it loops, else its own end
+                        let end = match clip.until {
+                            Some(u) => ((u - clip.at) * r).round() as usize,
+                            None if clip.looped => frames.saturating_sub(start),
+                            None => s.len() / 2,
+                        };
+                        if clip.looped && !s.is_empty() {
+                            s = s.iter().copied().cycle().take(end * 2).collect();
+                        }
+                        cut(&mut s, end, clip.fade * r);
+                        master.add_stereo(start, &s, gain, track.pan)
+                    }
                     Err(e) => warn_once(e),
                 },
                 ClipBody::Notes { source, mml, lang } => {
@@ -219,5 +246,40 @@ fn limit(s: &mut [f32]) {
         if a > 0.8 {
             *v = v.signum() * (0.8 + 0.2 * ((a - 0.8) / 0.2).tanh());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn cut_fades_out() {
+        let mut s = vec![1.0f32; 2 * 100];
+        cut(&mut s, 50, 10.0);
+        assert_eq!(s.len(), 100);
+        assert_eq!(s[2 * 39], 1.0); // before the fade
+        assert!(s[2 * 40] < 1.0 && s[2 * 40] > 0.9); // the fade's start
+        assert!(s[2 * 49] < 0.05); // its end
+        assert_eq!(s[2 * 45], s[2 * 45 + 1]); // both channels
+    }
+
+    #[test]
+    fn file_clip_loop() {
+        let ctx = TimeContext { fps_num: 10, fps_den: 1, marks: Default::default() };
+        let mix = Mix::parse("track bgm\n  @0 file \"x.wav\" loop=on fade=2s\n", Path::new("."), &ctx).unwrap();
+        assert!(mix.tracks[0].clips[0].looped);
+        assert!(Mix::parse("track bgm\n  @0 file \"x.wav\" loop=maybe\n", Path::new("."), &ctx).is_err());
+    }
+
+    #[test]
+    fn file_clip_until() {
+        let ctx = TimeContext { fps_num: 10, fps_den: 1, marks: [("next".to_string(), 30)].into() };
+        let mix = Mix::parse("track bgm\n  @0 file \"x.wav\" until=next fade=1s gain=-6dB\n", Path::new("."), &ctx).unwrap();
+        let clip = &mix.tracks[0].clips[0];
+        assert_eq!(clip.until, Some(3.0));
+        assert_eq!(clip.fade, 1.0);
+        assert!(Mix::parse("track t\n  @0 sine until=next c\n", Path::new("."), &ctx).is_err());
     }
 }

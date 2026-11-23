@@ -125,6 +125,12 @@ pub struct Clip {
     pub at: f64,
     pub gain: f64,
     pub body: ClipBody,
+    /// A file clip: where it stops (seconds from the first frame, `until=`),
+    /// whether it repeats until then (or the end of the video, `loop=on`)
+    /// and how long it fades out before it ends (`fade=`).
+    pub until: Option<f64>,
+    pub looped: bool,
+    pub fade: f64,
     /// Line of the clip in sound.mix, for messages.
     pub line: usize,
 }
@@ -268,6 +274,9 @@ fn parse_clip(s: &str, base: &Path, ctx: &TimeContext, line: usize) -> Result<Cl
     let mut rest = parts.next().unwrap_or("").trim_start();
     let mut gain = 1.0;
     let mut lang = None;
+    let mut until = None;
+    let mut looped = false;
+    let mut fade = 0.0;
     let mut file = None;
     if source == "file" {
         let q = rest.strip_prefix('"').ok_or("file needs a quoted path")?;
@@ -283,15 +292,30 @@ fn parse_clip(s: &str, base: &Path, ctx: &TimeContext, line: usize) -> Result<Cl
         match k {
             "gain" => gain = units::gain(v)?,
             "lang" => lang = Some(phoneme::Lang::parse(v)?),
+            "until" => until = Some(ctx.time(v)?),
+            "fade" => fade = ctx.duration(v)?,
+            "loop" => {
+                looped = match v {
+                    "on" | "yes" | "true" | "1" => true,
+                    "off" | "no" | "false" | "0" => false,
+                    _ => return Err(format!("loop=`{v}': on or off")),
+                }
+            }
             _ => return Err(format!("unknown clip parameter `{k}'")),
         }
         rest = rest[word_end..].trim_start();
+    }
+    if file.is_none() && (until.is_some() || looped || fade > 0.0) {
+        return Err("until=, loop= and fade= are for file clips".into());
+    }
+    if until.is_some_and(|u| u <= at) {
+        return Err("until= is not after the clip's start".into());
     }
     let body = match file {
         Some(path) => ClipBody::File { path },
         None => ClipBody::Notes { source, mml: rest.to_string(), lang },
     };
-    Ok(Clip { at, gain, body, line })
+    Ok(Clip { at, gain, body, until, looped, fade, line })
 }
 
 #[derive(Debug, Clone)]
