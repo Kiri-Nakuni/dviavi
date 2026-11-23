@@ -426,7 +426,8 @@ impl<'a> Table<'a> {
 /// The phoneme names of one romanised mora (`Ka` → k a, `Shi` → sh i,
 /// `Kya` → k y a, `Tsu` → ts u, `Nn` → N, `Q` → Q, `-` → the vowel before).
 /// Kunrei spellings are read as sounds: si → sh i, ti → ch i, tu → ts u,
-/// hu → f u, zi/di → j i, du → z u.
+/// hu → f u, zi/di → j i, du → z u.  Thi Dhi Twu Dwu (ティ ディ トゥ ドゥ)
+/// keep t and d.
 pub fn mora(m: &str, prev_vowel: &str) -> Vec<String> {
     let l = m.to_ascii_lowercase();
     match l.as_str() {
@@ -457,6 +458,9 @@ pub fn mora(m: &str, prev_vowel: &str) -> Vec<String> {
         ("t", "u") | ("ts", _) => "ts",
         ("h", "u") | ("f", _) => "f",
         ("d", "u") => "z",
+        // ティ ディ トゥ ドゥ (and the like): t and d before any vowel
+        ("th", _) | ("tw", _) => "t",
+        ("dh", _) | ("dw", _) => "d",
         ("x", _) | ("l", _) => "",
         (o, _) => o,
     };
@@ -491,6 +495,10 @@ mod tests {
         assert_eq!(m("-"), "a");
         assert_eq!(m("Q"), "Q");
         assert_eq!(m("Wa"), "w a");
+        assert_eq!(m("Thi"), "t i");
+        assert_eq!(m("Dhi"), "d i");
+        assert_eq!(m("Twu"), "t u");
+        assert_eq!(m("Dwu"), "d u");
     }
 
     #[test]

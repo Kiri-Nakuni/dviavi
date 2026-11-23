@@ -7,13 +7,14 @@ uplatex and dviavi in a scratch directory, then checked against its `%!` lines:
     %! errors: N           the log has N errors (default 0)
     %! log: TEXT           the log has TEXT;  `%! log: TEXT = N`  N times
     %! special: TEXT = N   N specials containing TEXT
+    %! file: EXT: TEXT      the file <jobname>.EXT has TEXT (`= N' as for log)
     %! compare: P, ...     frame P (1-based) looks like dvipdfmx's page P: at most
                            0.1% of its pixels differ by more than 48 (of 255)
 
 usage: tests/tex/run.py [--root DIR] [NAME ...]   (names match files, like 05 or plain)
 
 --root is the repository whose tests run (default: dviavi's own); TeX finds
-its tex/ and dviavi's tex/.  The dviavi program is $DVIAVI, else this
+its tex/, dviavi's tex/ and then $TEXINPUTS.  The dviavi program is $DVIAVI, else this
 repository's target/release/dviavi.
 """
 import re, shutil, subprocess, sys, tempfile
@@ -72,7 +73,8 @@ def check(tex: Path, root: Path) -> list:
         work = Path(d)
         for f in tex.parent.iterdir():
             (shutil.copytree if f.is_dir() else shutil.copy)(f, work / f.name)
-        env = {**os.environ, 'TEXINPUTS': f'{root / "tex"}//:{HERE / "tex"}//:'}
+        extra = os.environ.get('TEXINPUTS', '')
+        env = {**os.environ, 'TEXINPUTS': f'{root / "tex"}//:{HERE / "tex"}//:{extra}'}
         try:
             engine = next((l.split(':', 1)[1].strip() for l in spec if l.startswith('engine:')), 'uplatex')
             run([engine, '-interaction=nonstopmode', tex.name], work, env)
@@ -108,6 +110,14 @@ def check(tex: Path, root: Path) -> list:
                 n = log.count(text)
                 if (count and n != int(count)) or (not count and n == 0):
                     fails.append(f'log has `{text}\' {n} times' + (f', not {count}' if count else ''))
+            elif key == 'file':
+                ext, _, rest = val.partition(':')
+                text, _, count = rest.strip().rpartition(' = ') if ' = ' in rest else (rest.strip(), '', '')
+                f = work / (tex.stem + '.' + ext.strip())
+                body = f.read_text('utf-8', 'replace') if f.exists() else ''
+                n = body.count(text)
+                if (count and n != int(count)) or (not count and n == 0):
+                    fails.append(f'{f.name} has `{text}\' {n} times' + (f', not {count}' if count else ''))
             elif key == 'special':
                 n = sum(text in s for s in sp)
                 if n != int(count):

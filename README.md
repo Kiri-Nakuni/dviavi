@@ -17,6 +17,13 @@ foo.tex ──(u)platex / euptex──▶ foo.dvi ──dviavi──▶ foo.avi
 ## 使い方
 
 ```sh
+make link-bin                         # ビルドして ~/.local/bin/dviavi にリンク
+sudo env "PATH=$PATH" make install    # dviavi.tex・dviavi.sty を TEXMFLOCAL に（リンク）して mktexlsr
+```
+
+texmf-local に入れない場合:
+
+```sh
 cargo build --release
 export TEXINPUTS=/path/to/dviavi/tex//:
 uplatex foo.tex          # platex でも可。plain なら euptex / eptex

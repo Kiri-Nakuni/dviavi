@@ -82,6 +82,7 @@ plain の expl3 の出力先（backend）は dvipdfmx にする（dviavi が読�
 | `\dviavi_sound:n {special}` | 音の special。作っているフレームに入れる（フレームの間なら次のフレーム）。`\dviaviFrames`・`\dviaviStill` の繰り返しでは最初の 1 枚だけ |
 | `\dviavi_special:n {special}` | 同じところに、いつでも入れる |
 | `\dviavi_fps:` | フレームレート（fp の式、展開可能） |
+| `\dviavi_seconds:n {時間}` | `12f`・`1.5s`・`150ms`・`1:23.5` を秒に（fp の式、展開可能） |
 
 ### 形式
 

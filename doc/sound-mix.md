@@ -117,7 +117,8 @@ voice 名前 { f0=… mora=… formant=… breath=… gain=… vib=速さ,深さ
 ### 音素とモーラ
 
 ローマ字のモーラは音素に分かれる: `Ka` → k a、`Shi`/`Si` → sh i、`Kya` → k y a、`Tsu`/`Tu` → ts u、`Chi`/`Ti` → ch i、
-`Fu`/`Hu` → f u、`Ji`/`Zi` → j i、`Nn` → N（ん）、`Q` → 無音（っ）、`-` → 直前の母音、`_` → 休み。
+`Fu`/`Hu` → f u、`Ji`/`Zi` → j i、`Thi`/`Dhi` → t i / d i（ティ・ディ）、`Twu`/`Dwu` → t u / d u（トゥ・ドゥ）、
+`Nn` → N（ん）、`Q` → 無音（っ）、`-` → 直前の母音、`_` → 休み。
 
 | 音素 | 種類 | | 音素 | 種類 |
 |---|---|---|---|---|
