@@ -69,7 +69,7 @@ cargo build --release      # target/release/dviavi。FreeType と TeX Live（kps
 | `tex/dviavi.sty` | (u)pLaTeX 用。`\usepackage[fps=30,size=1280x720]{dviavi}`（オプションは `\dviaviSetup` のキー） |
 
 画面の大きさの紙のクラス（`avi.cls`）、animate 互換のアニメーション（`avianim.sty`）、声の定義と歌（`avivoice.sty`）は
-別のリポジトリ [avi](https://github.com/Kiri-Nakuni/avi) にある。
+別のリポジトリ [avipackages](https://github.com/Kiri-Nakuni/avipackages) にある。
 
 e-TeX 拡張が必要（`ptex`/`uptex` コマンドでは読み込みを止める）。マクロは expl3 で書いてあり、plain では `expl3-generic` を読み込む
 （LaTeX は expl3 を最初から持っているので負担はないが、plain ではコンパイルのたびに 10 秒ほどかかる）。
@@ -157,7 +157,7 @@ plain の expl3 の出力先（backend）は dvipdfmx にする（dviavi が読�
 `text` の記号: `'` 直前のモーラがアクセント核（そこまで高く、後は低い）、`/` 句の区切り（音程を戻す）、
 `_` 1 モーラの休み、`-` 直前の母音を伸ばす。`Q`（っ）は無音。音素は [sound-mix.md](sound-mix.md#音素とモーラ)。
 
-歌う（`\sing`）・声を文書の中で定義するには **avivoice.sty**（[avivoice.md](https://github.com/Kiri-Nakuni/avi/blob/main/doc/avivoice.md)）を使う。
+歌う（`\sing`）・声を文書の中で定義するには **avivoice.sty**（[avivoice.md](https://github.com/Kiri-Nakuni/avipackages/blob/main/doc/avivoice.md)）を使う。
 
 ## special
 

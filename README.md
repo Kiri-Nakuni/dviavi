@@ -7,7 +7,7 @@ DVI から AVI 動画を作る。**1 ページ = 1 フレーム**。音は sound
 [doc/sound-mix.md](doc/sound-mix.md)（sound.mix・MML・声と音素）。声の調整は `dviavi say` と `tools/voice-tuner.html`。
 
 画面の大きさの紙のクラス（`avi.cls`）、animate 互換のアニメーション（`avianim.sty`）、声の定義と歌（`avivoice.sty`）は
-[avi](https://github.com/Kiri-Nakuni/avi) リポジトリにある。
+[avipackages](https://github.com/Kiri-Nakuni/avipackages) リポジトリにある。
 
 ```
 foo.tex ──(u)platex / euptex──▶ foo.dvi ──dviavi──▶ foo.avi
@@ -48,7 +48,7 @@ target/release/dviavi foo.dvi        # → foo.avi（-o で出力先指定）
 | `\dviaviMark{名前}` | このフレームに名前を付ける（sound.mix の `@名前+12f`） |
 | `\dviaviMix{file}` | `\dviaviSetup{mix=file}` |
 
-- LaTeX: 任意のクラス + `\usepackage[fps=30, paperwidth=160mm, paperheight=90mm]{dviavi}`（紙を画面にする avi クラスは avi リポジトリ）。
+- LaTeX: 任意のクラス + `\usepackage[fps=30, paperwidth=160mm, paperheight=90mm]{dviavi}`（紙を画面にする avi クラスは avipackages リポジトリ）。
   色・画像・PGF は dvipdfmx ドライバで（`\usepackage[dvipdfmx]{xcolor}`）。フレームの外で指定した `\color` と `\pagecolor` はフレームに引き継がれる。
 - plain: `\input dviavi`（e-TeX 拡張が必要なので `euptex` / `eptex`）。expl3 を使うので `expl3-generic` を読み込む（1 回 10 秒ほどかかる）。
 - 音の命令は、繰り返しフレームの最初の 1 枚でだけ働く。フレームとフレームの間に書いた場合は、次に出力されるページに付く。
@@ -111,7 +111,7 @@ python3 tools/ust2dviavi.py timeline --offset 34b Main.ust lyrics.txt > timeline
 ```sh
 cargo test                     # Rust
 python3 tests/tex/run.py       # TeX（plain・dviavi.sty）。cargo build --release の後
-python3 tests/tex/run.py --root ../avi   # ほかのリポジトリのテスト（その tests/tex/）
+python3 tests/tex/run.py --root ../avipackages   # ほかのリポジトリのテスト（その tests/tex/）
 ```
 
 ## 制限
