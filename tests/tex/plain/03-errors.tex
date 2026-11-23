@@ -1,0 +1,10 @@
+% plain: an unknown key and \dviaviSetup after the first frame are errors
+%! engine: euptex
+%! pages: 2
+%! errors: 2
+\input dviavi
+\dviaviSetup{fpz=30}
+\dviaviFrame{x}
+\dviaviSetup{fps=30}
+\dviaviFrame{y}
+\bye

@@ -1,0 +1,9 @@
+\input dviavi
+\dviaviSetup{fps=24000/1001, mix=sound.mix}
+\font\big=cmr17 at 40pt
+\jfont\bigja=uprml-h at 40pt
+\dviaviMark{start}
+\dviaviFrames{12}{\big Frame \the\dviaviframe}
+\dviaviStill{\dviaviToFrames{1s}}{\bigja こんにちは\speak{ch=example,tone=normal,speed=1,pace=1.,text=KoNnNiTiWa}}
+\dviaviStill{\dviaviToFrames{500ms}}{\big end}
+\bye

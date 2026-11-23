@@ -1,0 +1,499 @@
+<title>dviavi Voice Tuner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a bench — phoneme rack on the left, the selected phoneme's controls in the middle, listening and output on the right; stacks on phones. */
+:root {
+  --bg: #f3f4f1; --panel: #ffffff; --ink: #1d211f; --muted: #5d6660; --line: #d5dad4;
+  --accent: #1f7a5c; --accent-ink: #ffffff; --warm: #b5532a; --spec-bg: #0f1412;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141816; --panel: #1c211f; --ink: #e6ebe7; --muted: #9aa69f; --line: #2f3733;
+  --accent: #4cc39a; --accent-ink: #0d1411; --warm: #e58a5f; --spec-bg: #0b0f0d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141816; --panel: #1c211f; --ink: #e6ebe7; --muted: #9aa69f; --line: #2f3733;
+  --accent: #4cc39a; --accent-ink: #0d1411; --warm: #e58a5f; --spec-bg: #0b0f0d; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: 1.6rem; margin: 0; letter-spacing: .01em; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 1rem; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 16px; max-width: 1280px; margin-inline: auto; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+.bench { display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; max-width: 1280px; margin: 0 auto; }
+@media (max-width: 1000px) { .bench { grid-template-columns: 1fr; } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.rack { display: grid; gap: 12px; align-content: start; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: .9rem; min-width: 2.4em; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--ink); cursor: pointer; }
+.chip.changed { border-color: var(--warm); color: var(--warm); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls { display: grid; gap: 10px; }
+.row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) 6.5em; align-items: center; gap: 10px; }
+.row label { font-size: .85rem; color: var(--muted); }
+.row input[type=range] { width: 100%; accent-color: var(--accent); }
+.row output { font-family: var(--mono); font-size: .85rem; text-align: right; font-variant-numeric: tabular-nums; }
+.row select { font: inherit; padding: 3px; }
+.sub { font-size: .8rem; color: var(--muted); margin: 2px 0 0; }
+.listen { display: grid; gap: 12px; align-content: start; }
+.say { display: flex; gap: 8px; flex-wrap: wrap; }
+.say input { flex: 1 1 12em; min-width: 0; font-family: var(--mono); font-size: 1rem; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+button.primary { font: 600 .95rem var(--body); padding: 8px 16px; border: 0; border-radius: 6px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+button.plain { font: .85rem var(--body); padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); cursor: pointer; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+canvas { width: 100%; height: 180px; background: var(--spec-bg); border-radius: 6px; display: block; }
+textarea { width: 100%; box-sizing: border-box; min-height: 9em; font-family: var(--mono); font-size: .85rem; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); resize: vertical; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.note { font-size: .8rem; color: var(--muted); margin: 0; }
+code { font-family: var(--mono); font-size: .9em; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+
+<header>
+  <h1>dviavi Voice Tuner</h1>
+  <p>Shape vowels and consonants, listen, and paste the result into a sound.mix. The sound is a JavaScript copy of dviavi's voice; check the final result with <code>dviavi say --mix FILE --voice NAME "Text"</code>.</p>
+</header>
+
+<div class="bench">
+  <section class="rack" aria-label="Phonemes">
+    <div><h2>Vowels</h2><div class="chips" id="vowels"></div></div>
+    <div><h2>Consonants</h2><div class="chips" id="consonants"></div></div>
+    <p class="note">Orange: changed from dviavi's built-in values.</p>
+  </section>
+
+  <section aria-label="Selected phoneme">
+    <h2 id="ph-title">Phoneme</h2>
+    <div class="controls" id="ph-controls"></div>
+    <div class="bar" style="margin-top:12px"><button class="plain" id="reset-ph">Reset this phoneme</button></div>
+    <h2 style="margin-top:18px">Voice</h2>
+    <div class="controls" id="voice-controls"></div>
+  </section>
+
+  <section class="listen" aria-label="Listen and export">
+    <div>
+      <h2>Listen</h2>
+      <form class="say" id="say-form">
+        <input id="say-text" value="KaKiKuKeKo" aria-label="Romanised text: a capital starts each mora">
+        <button class="primary" type="submit">Play</button>
+      </form>
+      <p class="sub">Romaji, a capital starts each mora: <code>KoNnNiTiWa</code>. <code>/</code> phrase break, <code>_</code> pause, <code>-</code> long vowel, <code>'</code> accent.</p>
+    </div>
+    <div class="presets" id="presets"></div>
+    <canvas id="spec" width="900" height="260" aria-label="Spectrogram of the last utterance (0 to 8 kHz)"></canvas>
+    <div>
+      <h2>sound.mix</h2>
+      <textarea id="out" spellcheck="false" aria-label="Mix-file lines for the current settings"></textarea>
+      <div class="bar" style="margin-top:8px">
+        <label class="note" for="voice-name">voice name</label>
+        <input id="voice-name" value="vocal" style="width:8em;font-family:var(--mono);padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)">
+        <button class="plain" id="copy">Copy</button>
+        <button class="plain" id="import">Read from the box</button>
+        <span class="note" id="msg" role="status"></span>
+      </div>
+      <p class="note">To keep tuning an existing file, paste its text into the box and choose “Read from the box”: its top-level and voice <code>phoneme</code> blocks and the voice's settings are loaded.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- dviavi's defaults (src/audio/phoneme.rs)
+const V = (f, amp) => ({ kind: "vowel", f, bw: [80, 100, 140], amp, voiced: 1, noise: 0, noisef: 0, noisebw: 0, noise2: 0, noise2f: 0, noise2bw: 0, closure: 0, dur: 0, aspiration: 0, aspamp: 0, pinch: 0 });
+const C = (kind, f, amp, voiced, noise, noisef, noisebw, closure, dur, aspiration = 0, aspamp = 0, pinch = 0) =>
+  ({ kind, f, bw: [100, 150, 200], amp, voiced, noise, noisef, noisebw, noise2: 0, noise2f: 0, noise2bw: 0, closure, dur, aspiration, aspamp, pinch });
+const NAS = f => ({ ...V(f, 1.2), kind: "nasal", bw: [110, 320, 450] });
+const BUILTIN = {
+  a: V([800, 1200, 2500], 1.0), i: V([300, 2300, 3000], 0.8), u: V([350, 1400, 2400], 0.8),
+  e: V([500, 1900, 2500], 0.9), o: V([500, 850, 2500], 0.95),
+  N: NAS([320, 1250, 2500]), "N:m": NAS([230, 1050, 2300]), "N:n": NAS([250, 1650, 2600]),
+  "N:ny": NAS([270, 2100, 2800]), "N:ng": NAS([300, 2000, 2700]),
+  k: { ...C("stop", [300, 1800, 2500], 0, 0, 0.55, 2500, 250, 0.035, 0.020, 0.050, 0.2, 1), noise2: 0.07, noise2f: 4700, noise2bw: 500 },
+  g: C("stop", [300, 1800, 2500], 0, 0.6, 0.25, 2000, 2000, 0.030, 0.010, 0, 0, 1),
+  t: C("stop", [400, 1800, 2600], 0, 0, 0.5, 4000, 3000, 0.035, 0.012, 0.020, 0.3, 0),
+  d: C("stop", [400, 1800, 2600], 0, 0.01, 0.25, 3500, 3000, 0.030, 0.008),
+  p: C("stop", [300, 900, 2300], 0, 0, 0.4, 1200, 2000, 0.040, 0.010, 0.020, 0.25, 0),
+  b: C("stop", [300, 900, 2300], 0, 0.6, 0.2, 1200, 2000, 0.035, 0.006),
+  s: C("fricative", [400, 1700, 2600], 0, 0, 0.66, 5150, 2050, 0.017, 0.105),
+  z: { ...C("affricate", [400, 1700, 2600], 0, 0, 0.6, 3900, 1350, 0.002, 0.013), bw: [40, 40, 40] },
+  sh: C("fricative", [350, 2000, 2700], 0, 0, 0.6, 3500, 2000, 0, 0.100),
+  j: C("affricate", [350, 2000, 2700], 0, 0, 0.11, 3200, 2000, 0, 0.023),
+  ch: C("affricate", [350, 2000, 2700], 0, 0, 0.79, 5350, 3600, 0.072, 0.021),
+  ts: C("affricate", [400, 1700, 2600], 0, 0, 0.41, 2600, 3000, 0.055, 0.026),
+  h: C("fricative", [500, 1500, 2500], 0, 0, 0.6, 1750, 600, 0, 0.060),
+  f: C("fricative", [350, 1000, 2300], 0, 0, 0.25, 1200, 2000, 0, 0.070),
+  m: C("nasal", [250, 1100, 2300], 1.0, 1, 0, 0, 0, 0, 0.060),
+  n: C("nasal", [250, 1700, 2600], 1.0, 1, 0, 0, 0, 0, 0.050),
+  r: C("flap", [350, 1300, 1800], 0.3, 1, 0, 0, 0, 0, 0.025),
+  y: C("glide", [280, 2300, 3000], 0.7, 1, 0, 0, 0, 0, 0.040),
+  w: C("glide", [300, 700, 2300], 0.7, 1, 0, 0, 0, 0, 0.045),
+  Q: { ...V([500, 1500, 2500], 0), kind: "silence" }, _: { ...V([500, 1500, 2500], 0), kind: "silence" },
+};
+const VOWELS = ["a", "i", "u", "e", "o", "N", "N:m", "N:n", "N:ny", "N:ng"];
+const CONSONANTS = ["k", "g", "s", "z", "sh", "j", "t", "d", "ch", "ts", "n", "h", "f", "b", "p", "m", "y", "r", "w"];
+const VOICE_DEFAULT = { f0: 140, mora: 0.15, formant: 1.0, breath: 0.03, vibRate: 5.5, vibDepth: 12 };
+const KINDS = ["vowel", "nasal", "stop", "fricative", "affricate", "flap", "glide", "silence"];
+const PRESETS = {
+  a: "A-I-U-E-O", i: "I-A-I", u: "U-O-U", e: "E-A-E", o: "O-A-O", N: "HoNn/HoNnYa", "N:m": "SaNnPo", "N:n": "KaNnTa",
+  "N:ny": "KaNnJi", "N:ng": "MaNnGa", k: "KaKiKuKeKo", g: "GaGiGuGeGo",
+  s: "SaSuSeSo", z: "ZaZuZeZo", sh: "ShaShiShuSho", j: "JaJiJuJo", t: "TaTeTo", d: "DaDeDo", ch: "ChaChiChu",
+  ts: "TsuTsuTsu", n: "NaNiNuNeNo", h: "HaHiHeHo", f: "FuFuFu", b: "BaBiBuBeBo", p: "PaPiPuPePo",
+  m: "MaMiMuMeMo", y: "YaYuYo", r: "RaRiRuReRo", w: "WaWaWo",
+};
+
+const clone = o => JSON.parse(JSON.stringify(o));
+let specs = clone(BUILTIN);
+let voice = { ...VOICE_DEFAULT };
+let selected = "k";
+
+// ---------------------------------------------------------------- morae (phoneme::mora)
+function morae(text) {
+  const out = [];
+  for (const c of text) {
+    if (/[A-Z]/.test(c) || out.length === 0 || !/[A-Za-z]/.test(c)) out.push(c); else out[out.length - 1] += c;
+  }
+  return out.filter(m => m.trim() !== "");
+}
+function moraPhonemes(m, prev) {
+  const l = m.toLowerCase();
+  if (l === "") return [];
+  if (l === "n" || l === "nn" || l === "n'") return ["N"];
+  if (l === "q" || l === "xtu" || l === "ltu") return ["Q"];
+  if (l === "-") return [prev];
+  if (l === "_") return ["_"];
+  let vpos = -1;
+  for (let i = l.length - 1; i >= 0; i--) if ("aiueo".includes(l[i])) { vpos = i; break; }
+  if (vpos < 0) return ["Q"];
+  const vowel = l[vpos];
+  let onset = l.slice(0, vpos), glide = false;
+  if (onset.endsWith("y")) {
+    const o = onset.slice(0, -1);
+    if (!["s", "z", "j", "t", "c", "d"].includes(o) && o !== "") { onset = o; glide = true; }
+  }
+  const key = onset + "|" + vowel;
+  let c;
+  if (["s|i"].includes(key) || ["sh", "sy"].includes(onset)) c = "sh";
+  else if (["z|i", "d|i"].includes(key) || ["j", "zy", "jy", "dy"].includes(onset)) c = "j";
+  else if (key === "t|i" || ["ch", "c", "ty", "cy"].includes(onset)) c = "ch";
+  else if (key === "t|u" || onset === "ts") c = "ts";
+  else if (key === "h|u" || onset === "f") c = "f";
+  else if (key === "d|u") c = "z";
+  else if (onset === "x" || onset === "l") c = "";
+  else c = onset;
+  const out = [];
+  if (c) out.push(c);
+  if (glide && !["sh", "j", "ch"].includes(c)) out.push("y");
+  out.push(vowel);
+  return out;
+}
+const lengthOf = s => s.closure + s.dur + s.aspiration;
+const onsetLength = ss => ss.slice(0, -1).reduce((a, s) => a + lengthOf(s), 0);
+const lastVowel = (ph, prev) => [...ph].reverse().find(p => "aiueo".includes(p) || p.startsWith("N")) || prev;
+function moraicNasal(next) {
+  if (["p", "b", "m", "N:m"].includes(next)) return "N:m";
+  if (["t", "d", "n", "ts", "z", "r"].includes(next)) return "N:n";
+  if (["ch", "j"].includes(next)) return "N:ny";
+  if (["k", "g"].includes(next)) return "N:ng";
+  return "N";
+}
+function assimilate(list) {
+  list.forEach((m, i) => { if (m.length === 1 && m[0] === "N") m[0] = moraicNasal(list[i + 1] && list[i + 1][0]); });
+}
+// one mora: onsets take their lengths x squeeze, the last phoneme fills to `end`
+function moraSegments(out, ss, t, end, squeeze, f0, amp, rate) {
+  const nucleus = ss[ss.length - 1];
+  for (const s of ss.slice(0, -1)) { const len = lengthOf(s) * squeeze * rate;
+    out.push({ start: Math.floor(Math.max(t, 0)), len: Math.floor(len), f0, s, amp, next: nucleus.f }); t += len; }
+  out.push({ start: Math.floor(Math.max(t, 0)), len: Math.floor(Math.max(end - t, 0)), f0, s: nucleus, amp, next: null });
+}
+const spec = name => specs[name] || specs.a;
+
+// ---------------------------------------------------------------- segments (voice::speak_segments)
+function speakSegments(text, rate) {
+  const names = [], phrases = [], accents = []; let phrase = 0, prev = "a";
+  for (const m of morae(text)) {
+    if (m === "'") { if (accents.length) accents[accents.length - 1] = true; }
+    else if (m === "/") { phrase++; names.push(["_"]); phrases.push(phrase); accents.push(false); }
+    else if (m === "-" || /^[A-Za-z_]+$/.test(m)) {
+      const ph = moraPhonemes(m, prev); prev = lastVowel(ph, prev);
+      names.push(ph); phrases.push(phrase); accents.push(false);
+    }
+  }
+  assimilate(names);
+  const moraLen = voice.mora, range = 400, base = voice.f0;
+  const total = Math.max(names.length, 1), out = [];
+  let pos = 0, cur = -1, after = false, t = Math.round(0.2 * rate);
+  names.forEach((m, i) => {
+    if (phrases[i] !== cur) { cur = phrases[i]; pos = 0; after = false; }
+    const high = after ? false : (pos > 0 || accents[i]);
+    const f0 = base * Math.pow(2, ((high ? 0.5 : -0.5) * range - 100 * i / total) / 1200);
+    const ss = m.map(spec), cons = onsetLength(ss);
+    const squeeze = cons > 0.6 * moraLen ? 0.6 * moraLen / cons : 1;
+    moraSegments(out, ss, t, t + moraLen * rate, squeeze, f0, 1, rate);
+    t += moraLen * rate;
+    if (accents[i]) after = true;
+    if (!(m.length === 1 && (m[0] === "_" || m[0] === "Q"))) pos++;
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------- synthesis (voice::render)
+function targets(s, next, tau, len) {
+  const t = { f: s.f, bw: s.bw, voice: 0, noise: 0, asp: 0 };
+  const ramp = (x, r) => Math.min(Math.max(x / r, 0), 1);
+  switch (s.kind) {
+    case "vowel": case "nasal": case "flap": case "glide": t.voice = s.amp; break;
+    case "stop": {
+      const burstEnd = s.closure + s.dur;
+      if (tau < s.closure) t.voice = s.voiced * 0.15;
+      else if (tau < burstEnd || s.aspiration <= 0) { const x = tau - s.closure; t.noise = s.noise * Math.exp(-x / Math.max(s.dur, 0.002)); t.voice = s.voiced * 0.3; }
+      else { const x = tau - burstEnd, fade = Math.min(Math.max(1 - x / Math.max(s.aspiration, 0.001), 0), 1);
+        t.asp = s.aspamp * fade; t.noise = s.noise * 0.3 * fade; t.voice = s.voiced * 0.5; if (next) t.f = next; }
+      break; }
+    case "fricative": case "affricate":
+      if (tau < s.closure) t.voice = s.voiced * 0.15;
+      else { const x = tau - s.closure, rise = s.kind === "affricate" ? 0.003 : 0.012;
+        t.noise = s.noise * ramp(x, rise) * ramp(len - tau, 0.012); t.voice = s.voiced * 0.4; }
+      break;
+  }
+  return t;
+}
+function blep(t, dt) {
+  if (t < dt) { const x = t / dt; return x + x - x * x - 1; }
+  if (t > 1 - dt) { const x = (t - 1) / dt; return x * x + x + x + 1; }
+  return 0;
+}
+function render(segs, rate) {
+  if (!segs.length) return new Float32Array(0);
+  const origin = segs[0].start, end = Math.max(...segs.map(s => s.start + s.len));
+  const total = end - origin + Math.floor(0.08 * rate), out = new Float64Array(total);
+  let phase = 0, seed = 12345 | 1, tilt = 0, prevX = 0;
+  const res = [0, 1, 2, 3].map(() => ({ y1: 0, y2: 0 }));
+  const band = [0, 1].map(() => ({ b0: 0, b2: 0, a1: 0, a2: 0, x1: 0, x2: 0, y1: 0, y2: 0 }));
+  const band2 = [0, 1].map(() => ({ b0: 0, b2: 0, a1: 0, a2: 0, x1: 0, x2: 0, y1: 0, y2: 0 }));
+  let fm = segs[0].s.f.map(f => f * voice.formant), bw = [...segs[0].s.bw], f0 = segs[0].f0, amp = 0, namp = 0, aamp = 0;
+  const k = ms => 1 - Math.exp(-1 / (ms / 1000 * rate));
+  const kf = k(18), kp = k(25), ka = k(6), kn = k(2), tiltK = 1 - Math.exp(-2 * Math.PI * 700 / rate);
+  const reson = (r, x, f, b) => { const T = 1 / rate, c = -Math.exp(-2 * Math.PI * b * T), bb = 2 * Math.exp(-Math.PI * b * T) * Math.cos(2 * Math.PI * f * T), a = 1 - bb - c;
+    const y = a * x + bb * r.y1 + c * r.y2; r.y2 = r.y1; r.y1 = y; return y; };
+  const tune = (b, centre, width) => { const w = 2 * Math.PI * Math.min(Math.max(centre / rate, 0.001), 0.49), q = Math.max(centre / Math.max(width, 1), 0.1),
+    al = Math.sin(w) / (2 * q), a0 = 1 + al; b.b0 = al / a0; b.b2 = -al / a0; b.a1 = -2 * Math.cos(w) / a0; b.a2 = (1 - al) / a0; };
+  const bp = (b, x) => { const y = b.b0 * x + b.b2 * b.x2 - b.a1 * b.y1 - b.a2 * b.y2; b.x2 = b.x1; b.x1 = x; b.y2 = b.y1; b.y1 = y; return y; };
+  let si = 0, tuned = -1;
+  for (let n = 0; n < total; n++) {
+    const abs = origin + n;
+    while (si + 1 < segs.length && abs >= segs[si + 1].start) si++;
+    const seg = segs[si], inside = abs >= seg.start && abs < seg.start + seg.len;
+    const tau = (abs - seg.start) / rate, tg = targets(seg.s, seg.next, tau, seg.len / rate);
+    if (tuned !== si && seg.s.noise > 0) {
+      const centre = seg.next && seg.s.pinch > 0 ? seg.s.noisef * (1 - seg.s.pinch) + seg.s.pinch * (seg.next[1] * voice.formant + 300) : seg.s.noisef;
+      band.forEach(b => tune(b, centre, seg.s.noisebw));
+      if (seg.s.noise2 > 0) band2.forEach(b => tune(b, seg.s.noise2f, seg.s.noise2bw));
+      tuned = si; }
+    if (seg.s.kind !== "silence") {
+      for (let j = 0; j < 3; j++) { fm[j] += (tg.f[j] * voice.formant - fm[j]) * kf; bw[j] += (tg.bw[j] - bw[j]) * kf; }
+      f0 += (seg.f0 - f0) * kp;
+    }
+    amp += ((inside ? tg.voice * seg.amp : 0) - amp) * ka;
+    namp += ((inside ? tg.noise * seg.amp : 0) - namp) * kn;
+    aamp += ((inside ? tg.asp * seg.amp : 0) - aamp) * kn;
+    const pitch = f0 * Math.pow(2, voice.vibDepth / 1200 * Math.sin(2 * Math.PI * voice.vibRate * n / rate));
+    const dt = Math.min(pitch / rate, 0.5), saw = 2 * phase - 1 - blep(phase, dt);
+    phase += dt; if (phase >= 1) phase -= 1;
+    tilt += (saw - tilt) * tiltK;
+    seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0;
+    const white = seed / 4294967295 * 2 - 1;
+    let x = (tilt + white * voice.breath) * amp + white * aamp * 0.1;
+    for (let j = 0; j < 3; j++) x = reson(res[j], x, fm[j], bw[j]);
+    x = reson(res[3], x, 3500 * voice.formant, 200);
+    const rad = x - prevX; prevX = x;
+    let hiss = bp(band[1], bp(band[0], white));
+    if (seg.s.noise2 > 0) hiss += bp(band2[1], bp(band2[0], white)) * seg.s.noise2;
+    out[n] = rad + hiss * namp * 0.35;
+  }
+  let peak = 1e-9; for (const v of out) peak = Math.max(peak, Math.abs(v));
+  const f32 = new Float32Array(total); for (let i = 0; i < total; i++) f32[i] = out[i] / peak * 0.5;
+  return f32;
+}
+
+// ---------------------------------------------------------------- spectrogram
+function drawSpectrogram(samples, rate) {
+  const cv = document.getElementById("spec"), g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--spec-bg") || "#000"; g.fillRect(0, 0, W, H);
+  const N = 1024, bins = Math.floor(8000 / rate * N), hop = Math.max(1, Math.floor((samples.length - N) / W));
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let col = 0; col < W; col++) {
+    const off = col * hop; if (off + N > samples.length) break;
+    for (let i = 0; i < N; i++) { re[i] = samples[off + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / N)); im[i] = 0; }
+    fft(re, im);
+    for (let y = 0; y < H; y++) {
+      const b = Math.floor((H - 1 - y) / H * bins), mag = Math.hypot(re[b], im[b]);
+      const db = 20 * Math.log10(mag + 1e-9), v = Math.min(Math.max((db + 40) / 70, 0), 1);
+      g.fillStyle = `hsl(${30 + 140 * (1 - v)}, 80%, ${8 + 60 * v}%)`; g.fillRect(col, y, 1, 1);
+    }
+  }
+}
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) { let cr = 1, ci = 0;
+      for (let j = 0; j < len / 2; j++) {
+        const ar = re[i + j + len / 2] * cr - im[i + j + len / 2] * ci, ai = re[i + j + len / 2] * ci + im[i + j + len / 2] * cr;
+        re[i + j + len / 2] = re[i + j] - ar; im[i + j + len / 2] = im[i + j] - ai; re[i + j] += ar; im[i + j] += ai;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } } }
+}
+
+// ---------------------------------------------------------------- playback
+let ctx = null;
+function play(text) {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  const rate = ctx.sampleRate, samples = render(speakSegments(text, rate), rate);
+  const buf = ctx.createBuffer(1, samples.length, rate); buf.copyToChannel(samples, 0);
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start();
+  drawSpectrogram(samples, rate);
+}
+
+// ---------------------------------------------------------------- controls
+const FIELDS = [
+  ["f0", "F1", 100, 1200, 10, "Hz"], ["f1", "F2", 500, 3200, 10, "Hz"], ["f2", "F3", 1200, 4000, 10, "Hz"],
+  ["bw0", "BW1", 40, 400, 5, "Hz"], ["bw1", "BW2", 40, 500, 5, "Hz"], ["bw2", "BW3", 40, 600, 5, "Hz"],
+  ["amp", "Voice amp", 0, 1.5, 0.01, ""], ["voiced", "Voicing", 0, 1, 0.01, ""],
+  ["noise", "Noise", 0, 1.5, 0.01, ""], ["noisef", "Noise centre", 300, 9000, 50, "Hz"], ["noisebw", "Noise width", 100, 6000, 25, "Hz"],
+  ["noise2", "2nd band", 0, 1, 0.01, ""], ["noise2f", "2nd centre", 1000, 10000, 50, "Hz"], ["noise2bw", "2nd width", 100, 4000, 25, "Hz"],
+  ["closure", "Closure", 0, 0.12, 0.001, "ms"], ["dur", "Duration", 0, 0.2, 0.001, "ms"],
+  ["aspiration", "Aspiration", 0, 0.1, 0.001, "ms"], ["aspamp", "Asp. level", 0, 1.5, 0.01, ""], ["pinch", "Pinch", 0, 1, 0.01, ""],
+];
+const get = (s, key) => key[0] === "f" && key.length === 2 ? s.f[+key[1]] : key.startsWith("bw") ? s.bw[+key[2]] : s[key];
+const put = (s, key, v) => { if (key[0] === "f" && key.length === 2) s.f[+key[1]] = v; else if (key.startsWith("bw")) s.bw[+key[2]] = v; else s[key] = v; };
+const show = (v, unit) => unit === "ms" ? (v * 1000).toFixed(0) + " ms" : unit ? Math.round(v) + " " + unit : (+v).toFixed(2);
+
+function slider(parent, id, label, min, max, step, value, unit, onInput) {
+  const row = document.createElement("div"); row.className = "row";
+  row.innerHTML = `<label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}"><output for="${id}"></output>`;
+  const input = row.querySelector("input"), out = row.querySelector("output");
+  input.value = value; out.textContent = show(value, unit);
+  input.addEventListener("input", () => { out.textContent = show(+input.value, unit); onInput(+input.value); });
+  parent.appendChild(row);
+}
+function buildPhoneme() {
+  const box = document.getElementById("ph-controls"), s = specs[selected];
+  document.getElementById("ph-title").textContent = "Phoneme " + selected;
+  box.innerHTML = "";
+  const row = document.createElement("div"); row.className = "row";
+  row.innerHTML = `<label for="kind">Kind</label><select id="kind">${KINDS.map(k => `<option${k === s.kind ? " selected" : ""}>${k}</option>`).join("")}</select><span></span>`;
+  row.querySelector("select").addEventListener("change", e => { s.kind = e.target.value; changed(); });
+  box.appendChild(row);
+  for (const [key, label, min, max, step, unit] of FIELDS) slider(box, "p-" + key, label, min, max, step, get(s, key), unit, v => { put(s, key, v); changed(); });
+}
+function buildVoice() {
+  const box = document.getElementById("voice-controls"); box.innerHTML = "";
+  slider(box, "v-f0", "Pitch (f0)", 60, 600, 1, voice.f0, "Hz", v => { voice.f0 = v; changed(); });
+  slider(box, "v-formant", "Formant ×", 0.7, 1.4, 0.01, voice.formant, "", v => { voice.formant = v; changed(); });
+  slider(box, "v-breath", "Breath", 0, 0.3, 0.005, voice.breath, "", v => { voice.breath = v; changed(); });
+  slider(box, "v-mora", "Mora", 0.06, 0.4, 0.005, voice.mora, "ms", v => { voice.mora = v; changed(); });
+  slider(box, "v-vibr", "Vibrato rate", 0, 9, 0.1, voice.vibRate, "", v => { voice.vibRate = v; changed(); });
+  slider(box, "v-vibd", "Vibrato cents", 0, 60, 1, voice.vibDepth, "", v => { voice.vibDepth = v; changed(); });
+}
+function buildRack() {
+  for (const [id, list] of [["vowels", VOWELS], ["consonants", CONSONANTS]]) {
+    const box = document.getElementById(id); box.innerHTML = "";
+    for (const name of list) {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = name; b.type = "button";
+      b.setAttribute("aria-pressed", name === selected);
+      if (diff(name).length) b.classList.add("changed");
+      b.addEventListener("click", () => { selected = name; buildRack(); buildPhoneme();
+        document.getElementById("say-text").value = PRESETS[name] || "A"; });
+      box.appendChild(b);
+    }
+  }
+}
+function buildPresets() {
+  const box = document.getElementById("presets");
+  for (const t of ["KoNnNiTiWa", "SaSiSuSeSo", "HiRaGaNa/KaTaKaNa", "ShiNnDaHeNnSuDe"]) {
+    const b = document.createElement("button"); b.className = "plain"; b.type = "button"; b.textContent = t;
+    b.addEventListener("click", () => { document.getElementById("say-text").value = t; play(t); }); box.appendChild(b);
+  }
+}
+
+// ---------------------------------------------------------------- mix lines
+const num = v => +(+v).toFixed(4);
+function diff(name) {
+  const a = specs[name], b = BUILTIN[name], kv = [];
+  if (!a || !b) return kv;
+  if (a.kind !== b.kind) kv.push(`kind=${a.kind}`);
+  if (a.f.some((v, i) => Math.round(v) !== b.f[i])) kv.push(`f=${a.f.map(Math.round).join(",")}`);
+  if (a.bw.some((v, i) => Math.round(v) !== b.bw[i])) kv.push(`bw=${a.bw.map(Math.round).join(",")}`);
+  for (const k of ["amp", "voiced", "noise", "noise2", "aspamp", "pinch"]) if (Math.abs(a[k] - b[k]) > 1e-4) kv.push(`${k}=${num(a[k])}`);
+  for (const k of ["noisef", "noisebw", "noise2f", "noise2bw"]) if (Math.round(a[k]) !== b[k]) kv.push(`${k}=${Math.round(a[k])}`);
+  for (const k of ["closure", "dur", "aspiration"]) if (Math.abs(a[k] - b[k]) > 1e-4) kv.push(`${k}=${num(a[k] * 1000)}ms`);
+  return kv;
+}
+function mixText() {
+  const name = document.getElementById("voice-name").value.trim() || "vocal";
+  const lines = [`voice ${name} { f0=${Math.round(voice.f0)} mora=${num(voice.mora * 1000)}ms formant=${num(voice.formant)} breath=${num(voice.breath)} vib=${num(voice.vibRate)}Hz,${Math.round(voice.vibDepth)}c`];
+  for (const p of [...VOWELS, ...CONSONANTS]) { const kv = diff(p); if (kv.length) lines.push(`  phoneme ${p} { ${kv.join(" ")} }`); }
+  lines.push("}");
+  return lines.join("\n");
+}
+function changed() { document.getElementById("out").value = mixText(); buildRack(); save(); }
+
+// reads `phoneme X { ... }` (anywhere) and the first voice's settings
+function readMix(text) {
+  text = text.replace(/%.*$/gm, "");
+  specs = clone(BUILTIN);
+  for (const m of text.matchAll(/phoneme\s+(\S+)\s*\{([^{}]*)\}/g)) {
+    const name = m[1]; if (!specs[name]) specs[name] = clone(BUILTIN.a);
+    for (const kv of m[2].trim().split(/\s+/)) { const [k, v] = kv.split("="); if (v !== undefined) setKey(specs[name], k, v); }
+  }
+  const vm = text.match(/voice\s+(\S+)\s*\{([^{}]*)/);
+  if (vm) {
+    document.getElementById("voice-name").value = vm[1];
+    for (const kv of vm[2].trim().split(/\s+/)) {
+      const [k, v] = kv.split("="); if (v === undefined) continue;
+      if (k === "f0") voice.f0 = parseFloat(v);
+      if (k === "formant") voice.formant = parseFloat(v);
+      if (k === "breath") voice.breath = parseFloat(v);
+      if (k === "mora") voice.mora = secs(v);
+      if (k === "vib") { const [r, d] = v.split(","); voice.vibRate = parseFloat(r); voice.vibDepth = parseFloat(d); }
+    }
+  }
+}
+const secs = v => v.endsWith("ms") ? parseFloat(v) / 1000 : parseFloat(v);
+const lin = v => v.endsWith("dB") ? Math.pow(10, parseFloat(v) / 20) : parseFloat(v);
+const hz = v => v.toLowerCase().endsWith("k") || v.toLowerCase().endsWith("khz") ? parseFloat(v) * 1000 : parseFloat(v);
+function setKey(s, k, v) {
+  if (k === "kind") s.kind = v;
+  else if (k === "f") s.f = v.split(",").map(hz);
+  else if (k === "bw") s.bw = v.split(",").map(hz);
+  else if (["amp", "noise", "noise2", "aspamp"].includes(k)) s[k] = lin(v);
+  else if (k === "pinch") s.pinch = parseFloat(v);
+  else if (k === "voiced") s.voiced = parseFloat(v);
+  else if (["noisef", "noisebw", "noise2f", "noise2bw"].includes(k)) s[k] = hz(v);
+  else if (["closure", "dur", "aspiration"].includes(k)) s[k] = secs(v);
+}
+
+// ---------------------------------------------------------------- state
+function save() { try { localStorage.setItem("dviavi-voice-tuner", JSON.stringify({ version: 3, specs, voice, selected })); } catch (e) {} }
+function load() { try { const d = JSON.parse(localStorage.getItem("dviavi-voice-tuner") || "null");
+  if (d && d.version === 3) { specs = { ...clone(BUILTIN), ...d.specs }; voice = { ...VOICE_DEFAULT, ...d.voice }; selected = d.selected || selected; } } catch (e) {} }
+
+document.getElementById("say-form").addEventListener("submit", e => { e.preventDefault(); play(document.getElementById("say-text").value); });
+document.getElementById("reset-ph").addEventListener("click", () => { specs[selected] = clone(BUILTIN[selected]); buildPhoneme(); changed(); });
+document.getElementById("voice-name").addEventListener("input", () => { document.getElementById("out").value = mixText(); save(); });
+document.getElementById("copy").addEventListener("click", async () => {
+  const ta = document.getElementById("out"), msg = document.getElementById("msg");
+  try { await navigator.clipboard.writeText(ta.value); msg.textContent = "Copied"; }
+  catch (e) { ta.select(); msg.textContent = "Selected: copy with Ctrl+C"; }
+});
+document.getElementById("import").addEventListener("click", () => {
+  readMix(document.getElementById("out").value); buildVoice(); buildPhoneme(); changed();
+  document.getElementById("msg").textContent = "Read";
+});
+load(); buildRack(); buildPhoneme(); buildVoice(); buildPresets(); changed();
+document.getElementById("say-text").value = PRESETS[selected] || "KaKiKuKeKo";
+drawSpectrogram(render(speakSegments("KaKiKuKeKo", 48000), 48000), 48000);
+</script>

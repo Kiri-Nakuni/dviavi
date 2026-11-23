@@ -1,0 +1,11 @@
+[package]
+name = "dviavi"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "DVI to AVI: one DVI page per video frame, with synthesised sound"
+
+[dependencies]
+encoding_rs = "0.8.44"
+freetype-rs = "0.38.0"
+tiny-skia = "0.12.0"

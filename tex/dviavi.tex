@@ -1,0 +1,301 @@
+%% dviavi.tex -- TeX side of dviavi (frame-based video from DVI)
+%%
+%% Plain e-pTeX/e-upTeX (eptex, euptex): \input dviavi   LaTeX: \usepackage{dviavi} (reads this file)
+%%
+%% One DVI page is one video frame.  This file
+%%   - fixes the output format (\dviaviSetup) and writes it on the first frame,
+%%   - counts frames (\dviaviframe = frames already shipped = index of the
+%%     frame being built),
+%%   - ships frames (\dviaviFrame, \dviaviFrames, \dviaviStill),
+%%   - converts times to frames (\dviaviToFrames, expandable),
+%%   - places sounds (\speak, \dviaviTone, \dviaviMark, sound.mix via mix=).
+%%
+%% It is written in expl3; plain TeX loads expl3-generic for it.
+%%
+%% For other packages (expl3):
+%%   \dviavi_sound:n {special}    a sound special: into the frame being built
+%%                                (between frames: the next one), only on the
+%%                                first of frames shown repeatedly
+%%   \dviavi_special:n {special}  the same, always
+%%   \dviavi_fps:                 the frame rate, an fp expression (expandable)
+\expandafter\ifx\csname dviavi@loaded\endcsname\relax\else\expandafter\endinput\fi
+\ifx\numexpr\undefined
+  \errmessage{dviavi needs e-TeX: use eptex/euptex (plain) or (u)platex}\expandafter\endinput
+\fi
+\expandafter\def\csname dviavi@loaded\endcsname{}
+%% plain: expl3 with the dvipdfmx backend (the specials dviavi reads; the
+%% dvips one would add a page for its header), chosen as LaTeX's class
+%% option would be
+\ifx\ExplSyntaxOn\undefined
+  \expandafter\def\csname dviavi@expl\endcsname{%
+    \expandafter\def\csname @classoptionslist\endcsname{dvipdfmx}%
+    \expandafter\def\csname @unusedoptionlist\endcsname{}%
+    \input expl3-generic\relax
+    \expandafter\let\csname @classoptionslist\endcsname\undefined
+    \expandafter\let\csname @unusedoptionlist\endcsname\undefined}%
+\else
+  \expandafter\let\csname dviavi@expl\endcsname\relax
+\fi
+\csname dviavi@expl\endcsname
+\ExplSyntaxOn
+
+\bool_new:N \c__dviavi_latex_bool
+\cs_if_exist:NT \documentclass { \bool_set_true:N \c__dviavi_latex_bool }
+
+%%% ------------------------------------------------------------ format
+\int_new:N \g__dviavi_fps_num_int
+\int_new:N \g__dviavi_fps_den_int
+\int_gset:Nn \g__dviavi_fps_num_int { 24000 }
+\int_gset:Nn \g__dviavi_fps_den_int { 1001 }
+\tl_new:N \g__dviavi_size_tl
+\tl_new:N \g__dviavi_rate_tl
+\tl_new:N \g__dviavi_keyint_tl
+\tl_new:N \g__dviavi_mix_tl
+\tl_gset:Nn \g__dviavi_size_tl { 1920x1080 }
+\tl_gset:Nn \g__dviavi_rate_tl { 48000 }
+\tl_gset:Nn \g__dviavi_keyint_tl { 240 }
+
+\cs_new:Npn \dviavi_fps: { ( \g__dviavi_fps_num_int / \g__dviavi_fps_den_int ) }
+
+%% In LaTeX the frame counter and the paper are LaTeX's own registers.
+\bool_if:NTF \c__dviavi_latex_bool
+  {
+    \cs_gset_eq:NN \dviaviframe \ReadonlyShipoutCounter
+    \cs_gset_eq:NN \dviavipaperwidth \paperwidth
+    \cs_gset_eq:NN \dviavipaperheight \paperheight
+  }
+  {
+    \int_new:N \dviaviframe
+    \dim_new:N \dviavipaperwidth
+    \dim_new:N \dviavipaperheight
+  }
+\dim_gset:Nn \dviavipaperwidth { 160mm }
+\dim_gset:Nn \dviavipaperheight { 90mm }
+
+%% \dviaviSetup{fps=24000/1001, size=1920x1080, rate=48000, keyint=240,
+%%   mix=sound.mix, paperwidth=160mm, paperheight=90mm}
+%% Only the values at the first shipout reach the video.
+\keys_define:nn { dviavi }
+  {
+    fps         .code:n = { \__dviavi_set_fps:w #1 / / \q_stop } ,
+    size        .tl_gset:N = \g__dviavi_size_tl ,
+    rate        .tl_gset:N = \g__dviavi_rate_tl ,
+    keyint      .tl_gset:N = \g__dviavi_keyint_tl ,
+    mix         .tl_gset:N = \g__dviavi_mix_tl ,
+    paperwidth  .code:n = { \dim_gset:Nn \dviavipaperwidth {#1} } ,
+    paperheight .code:n = { \dim_gset:Nn \dviavipaperheight {#1} } ,
+  }
+\cs_new_protected:Npn \__dviavi_set_fps:w #1 / #2 / #3 \q_stop
+  {
+    \int_gset:Nn \g__dviavi_fps_num_int {#1}
+    \int_gset:Nn \g__dviavi_fps_den_int { \tl_if_blank:nTF {#2} { 1 } {#2} }
+  }
+\cs_new_protected:Npn \dviaviSetup #1
+  {
+    \int_compare:nNnT { \dviaviframe } > { 0 }
+      { \msg_error:nn { dviavi } { late-setup } }
+    \keys_set:nn { dviavi } {#1}
+  }
+\msg_new:nnn { dviavi } { late-setup }
+  { \token_to_str:N \dviaviSetup \ after~the~first~frame~has~no~effect. }
+\cs_new_protected:Npn \dviaviMix #1 { \dviaviSetup { mix = {#1} } }
+
+%% Written on the first frame: everything dviavi needs to know up front.
+\cs_new_protected:Npn \__dviavi_config_specials:
+  {
+    \tex_special:D
+      {
+        dviavi: ~ config ~
+        fps = \int_use:N \g__dviavi_fps_num_int / \int_use:N \g__dviavi_fps_den_int
+        \c_space_tl size = \g__dviavi_size_tl
+        \c_space_tl rate = \g__dviavi_rate_tl
+        \c_space_tl keyint = \g__dviavi_keyint_tl
+        \c_space_tl paper = \dim_use:N \dviavipaperwidth , \dim_use:N \dviavipaperheight
+        \tl_if_empty:NF \g__dviavi_mix_tl { \c_space_tl mix = \g__dviavi_mix_tl }
+      }
+  }
+
+%%% ------------------------------------------------------------ specials
+%% Specials given between frames (outer vertical mode) wait here for the next
+%% page shipped; elsewhere they go into the frame being built.
+\tl_new:N \g__dviavi_pending_tl
+\cs_new_protected:Npn \dviavi_special:n #1
+  {
+    \bool_lazy_and:nnTF { \mode_if_vertical_p: } { ! \mode_if_inner_p: }
+      { \tl_gput_right:Ne \g__dviavi_pending_tl { \tex_special:D {#1} } }
+      { \tex_special:D {#1} }
+  }
+%% Sound acts only while this is true: on the first of repeated frames.
+\bool_new:N \l_dviavi_sound_bool
+\bool_set_true:N \l_dviavi_sound_bool
+\cs_new_protected:Npn \dviavi_sound:n #1
+  { \bool_if:NT \l_dviavi_sound_bool { \dviavi_special:n {#1} } }
+
+%%% ------------------------------------------------------------ shipout (plain)
+%% LaTeX: dviavi.sty uses the shipout hooks.  Plain: \shipout is wrapped so
+%% that every page is counted and the first one carries the format.
+\bool_if:NF \c__dviavi_latex_bool
+  {
+    \cs_gset_eq:NN \__dviavi_primitive_shipout: \tex_shipout:D
+    \box_new:N \g__dviavi_ship_box
+    \int_new:N \g__dviavi_level_int
+    \cs_gset_protected:Npn \shipout
+      {
+        \int_gset:Nn \g__dviavi_level_int { \tex_currentgrouplevel:D }
+        \tex_afterassignment:D \__dviavi_ship_after:
+        \tex_global:D \tex_setbox:D \g__dviavi_ship_box =
+      }
+    %% with \shipout\vbox{...} we are inside the box's group: wait for its end
+    \cs_gset_protected:Npn \__dviavi_ship_after:
+      {
+        \int_compare:nNnTF { \tex_currentgrouplevel:D } > { \g__dviavi_level_int }
+          { \group_insert_after:N \__dviavi_ship_now: }
+          { \__dviavi_ship_now: }
+      }
+    \cs_gset_protected:Npn \__dviavi_ship_now:
+      {
+        \__dviavi_primitive_shipout: \vbox:n
+          {
+            \int_compare:nNnT { \dviaviframe } = { 0 } { \__dviavi_config_specials: }
+            \g__dviavi_pending_tl
+            \box_use_drop:N \g__dviavi_ship_box
+          }
+        \tl_gclear:N \g__dviavi_pending_tl
+        \int_gincr:N \dviaviframe
+      }
+  }
+
+%%% ------------------------------------------------------------ frames
+\box_new:N \l__dviavi_frame_box
+\int_new:N \l__dviavi_count_int
+
+%% How a frame body fills the screen (redefine freely).
+\cs_new:Npn \dviaviLayout #1
+  {
+    \vbox_to_ht:nn { \dviavipaperheight }
+      { \tex_vss:D \hbox_to_wd:nn { \dviavipaperwidth } { \tex_hss:D #1 \tex_hss:D } \tex_vss:D }
+  }
+%% A frame starts in the colour current where it is built (LaTeX color/xcolor).
+\cs_new_protected:Npn \__dviavi_start_color: { \cs_if_exist_use:c { set@color } }
+
+%% the paper's top-left corner is the DVI origin minus one true inch;
+%% TeX also offsets every shipped box by \hoffset and \voffset
+\cs_new_protected:Npn \__dviavi_ship:
+  {
+    \shipout \vbox:n
+      {
+        \tex_kern:D \dim_eval:n { -1truein - \tex_voffset:D } \scan_stop:
+        \tex_moveleft:D \dim_eval:n { 1truein + \tex_hoffset:D } \box_use:N \l__dviavi_frame_box
+      }
+  }
+\cs_new_protected:Npn \__dviavi_set_frame:n #1
+  { \hbox_set:Nn \l__dviavi_frame_box { \dviaviLayout { \__dviavi_start_color: #1 } } }
+
+%% \dviaviFrames{n}{body}: n frames, the body typeset anew for each
+%% (so it may depend on \dviaviframe).  \dviaviFrame{body} = one frame.
+\cs_new_protected:Npn \dviaviFrame #1 { \dviaviFrames { 1 } {#1} }
+\cs_new_protected:Npn \dviaviFrames #1#2
+  {
+    \group_begin:
+    \int_set:Nn \l__dviavi_count_int {#1}
+    \int_do_while:nNnn { \l__dviavi_count_int } > { 0 }
+      {
+        \__dviavi_set_frame:n {#2}
+        \__dviavi_ship:
+        \bool_set_false:N \l_dviavi_sound_bool
+        \int_decr:N \l__dviavi_count_int
+      }
+    \group_end:
+  }
+
+%% \dviaviStill{n}{body}: the body typeset once and shown for n frames
+%% (once more, without sound, for the repeats).
+\cs_new_protected:Npn \dviaviStill #1#2
+  {
+    \group_begin:
+    \int_set:Nn \l__dviavi_count_int {#1}
+    \int_compare:nNnT { \l__dviavi_count_int } > { 0 }
+      {
+        \__dviavi_set_frame:n {#2}
+        \__dviavi_ship:
+        \int_decr:N \l__dviavi_count_int
+        \int_compare:nNnT { \l__dviavi_count_int } > { 0 }
+          {
+            \bool_set_false:N \l_dviavi_sound_bool
+            \__dviavi_set_frame:n {#2}
+            \prg_replicate:nn { \l__dviavi_count_int } { \__dviavi_ship: }
+          }
+      }
+    \group_end:
+  }
+
+%%% ------------------------------------------------------------ time
+%% \dviaviToFrames{t} expands to the number of frames in t:
+%% 12f, 12 (frames), 1.5s, 150ms, 1:23.5 (min:sec); rounded to the nearest frame.
+%% (the colon of min:sec is an ordinary character: defined through #1 below)
+\cs_set:Npn \__dviavi_tmp:n #1
+  {
+    \cs_new:Npn \dviaviToFrames ##1 { \__dviavi_time:w ##1 #1 #1 \q_stop }
+    \cs_new:Npn \__dviavi_time:w ##1 #1 ##2 #1 ##3 \q_stop
+      {
+        \tl_if_empty:nTF {##2}
+          { \__dviavi_unit_ms:w ##1 ms \q_mark {##1} \q_stop }
+          { \__dviavi_seconds:n { ##1 * 60 + ##2 } }
+      }
+  }
+\exp_args:NV \__dviavi_tmp:n \c_colon_str
+\cs_new:Npn \__dviavi_unit_ms:w #1 ms #2 \q_mark #3 #4 \q_stop
+  {
+    \tl_if_empty:nTF {#2}
+      { \__dviavi_unit_s:w #3 s \q_mark {#3} \q_stop }
+      { \__dviavi_seconds:n { #1 / 1000 } }
+  }
+\cs_new:Npn \__dviavi_unit_s:w #1 s #2 \q_mark #3 #4 \q_stop
+  {
+    \tl_if_empty:nTF {#2}
+      { \__dviavi_unit_f:w #3 f \q_stop }
+      { \__dviavi_seconds:n {#1} }
+  }
+\cs_new:Npn \__dviavi_unit_f:w #1 f #2 \q_stop { \int_eval:n {#1} }
+\cs_new:Npn \__dviavi_seconds:n #1
+  { \fp_eval:n { round ( ( #1 ) * \dviavi_fps: ) } }
+
+%%% ------------------------------------------------------------ sound
+%% \dviaviMark{name}: names this frame for sound.mix (@name+12f).
+\cs_new_protected:Npn \dviaviMark #1 { \dviavi_sound:n { dviavi: ~ mark ~ name = #1 } }
+%% \dviaviTone{inst or wave}{freq}{duration}
+\cs_new_protected:Npn \dviaviTone #1#2#3
+  { \dviavi_sound:n { dviavi: ~ tone ~ inst = #1 ~ freq = #2 ~ dur = #3 } }
+
+%% \speak{ch=example, tone=normal, speed=.9, pace=1., text=KoNnNiTiWa, lang=ja}
+%% The keys given are written in order; a value with spaces goes in braces.
+\tl_new:N \l__dviavi_args_tl
+\cs_new_protected:Npn \__dviavi_arg:nn #1#2
+  {
+    \tl_if_in:nnTF {#2} { ~ }
+      {
+        \tl_put_right:Ne \l__dviavi_args_tl
+          { \c_space_tl #1 = \c_left_brace_str \tl_to_str:n {#2} \c_right_brace_str }
+      }
+      { \tl_put_right:Ne \l__dviavi_args_tl { \c_space_tl #1 = \tl_to_str:n {#2} } }
+  }
+\keys_define:nn { dviavi / speak }
+  {
+    ch    .code:n = { \__dviavi_arg:nn { ch } {#1} } ,
+    tone  .code:n = { \__dviavi_arg:nn { tone } {#1} } ,
+    speed .code:n = { \__dviavi_arg:nn { speed } {#1} } ,
+    pace  .code:n = { \__dviavi_arg:nn { pace } {#1} } ,
+    text  .code:n = { \__dviavi_arg:nn { text } {#1} } ,
+    lang  .code:n = { \__dviavi_arg:nn { lang } {#1} } ,
+  }
+\cs_new_protected:Npn \speak #1
+  {
+    \group_begin:
+    \tl_clear:N \l__dviavi_args_tl
+    \keys_set:nn { dviavi / speak } {#1}
+    \dviavi_sound:n { dviavi: ~ speak \l__dviavi_args_tl }
+    \group_end:
+  }
+
+\ExplSyntaxOff
+\endinput

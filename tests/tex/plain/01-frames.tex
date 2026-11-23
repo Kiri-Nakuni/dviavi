@@ -1,0 +1,14 @@
+% plain: setup, frames, still frames and times in frames
+%! engine: euptex
+%! pages: 5
+%! special: fps=30/1 = 1
+%! special: size=640x360 = 1
+%! log: T:30,5,1875,12
+%! log: N:5
+\input dviavi
+\dviaviSetup{fps=30, size=640x360}
+\message{T:\dviaviToFrames{1s},\dviaviToFrames{160ms},\dviaviToFrames{1:02.5},\dviaviToFrames{12f}}
+\dviaviFrames{3}{\the\dviaviframe}
+\dviaviStill{2}{x}
+\message{N:\the\dviaviframe}
+\bye

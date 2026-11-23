@@ -1,0 +1,8 @@
+% plain: \speak keeps spaces (a value with spaces goes in braces) and takes lang=
+%! engine: euptex
+%! pages: 1
+%! special: dviavi: speak ch=daisy lang=en text={D.EY Z.IY / D.EY Z.IY} = 1
+%! special: dviavi: speak text=KoNnNiChiWa pace=150ms = 1
+\input dviavi
+\dviaviFrame{\speak{ch=daisy, lang=en, text=D.EY Z.IY / D.EY Z.IY}\speak{text=KoNnNiChiWa, pace=150ms}}
+\bye

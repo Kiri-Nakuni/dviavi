@@ -1,0 +1,10 @@
+% plain: pages shipped with \shipout itself are frames too
+%! engine: euptex
+%! pages: 2
+%! special: dviavi: config = 1
+%! log: N:2
+\input dviavi
+\shipout\vbox{a}
+\shipout\hbox{b}
+\message{N:\the\dviaviframe}
+\bye

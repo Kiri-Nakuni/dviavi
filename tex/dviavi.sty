@@ -1,0 +1,46 @@
+%% dviavi.sty -- frame-based video with dviavi for (u)pLaTeX
+%% The implementation is in dviavi.tex (shared with plain pTeX); this file
+%% adds what LaTeX needs.  Options are \dviaviSetup keys:
+%%   \usepackage[fps=30, size=1280x720]{dviavi}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{dviavi}[2026/11/23 v0.2 frame-based video with dviavi]
+\input dviavi.tex\relax
+\ExplSyntaxOn
+
+%% ---------------------------------------------------------------- options
+%% the keys of \dviaviSetup (defined in dviavi.tex)
+\ProcessKeyOptions [ dviavi ]
+
+%% ---------------------------------------------------------------- shipout
+%% everything dviavi needs to know up front goes on the first frame
+\AddToHook { shipout / firstpage } { \__dviavi_config_specials: }
+
+%% specials queued between frames (sound, background) ride on the next page
+\AddToHook { shipout / before }
+  {
+    \tl_if_empty:NF \g__dviavi_pending_tl
+      {
+        \vbox_gset:Nn \ShipoutBox { \g__dviavi_pending_tl \box_use_drop:N \ShipoutBox }
+        \tl_gclear:N \g__dviavi_pending_tl
+      }
+  }
+
+%% \pagecolor between frames (outer vertical mode): queue the background
+%% for the next page instead of putting a special on the main list
+\cs_new_protected:Npn \__dviavi_queue_background:
+  { \dviavi_special:n { background ~ \current@color } }
+\AtBeginDocument
+  {
+    \cs_if_exist:NT \set@page@color
+      {
+        \cs_set_eq:NN \__dviavi_set_page_color: \set@page@color
+        \cs_set_protected:Npn \set@page@color
+          {
+            \bool_lazy_and:nnTF { \mode_if_vertical_p: } { ! \mode_if_inner_p: }
+              { \__dviavi_queue_background: }
+              { \__dviavi_set_page_color: }
+          }
+      }
+  }
+\ExplSyntaxOff
+\endinput

@@ -1,0 +1,11 @@
+\documentclass[dvipdfmx]{jsarticle}
+\usepackage[paperwidth=160mm,paperheight=90mm]{dviavi}
+\usepackage[dvipdfmx]{xcolor}
+\dviaviSetup{mix=sound.mix}
+\begin{document}
+\pagecolor{black}\color{white}
+\dviaviMark{start}
+\dviaviFrames{24}{\Huge 入力中\ifodd\numexpr\dviaviframe/3\relax\else\textcolor{cyan}{|}\fi}
+\dviaviStill{\dviaviToFrames{1s}}{\Huge\textcolor{orange}{変換}しました\speak{ch=example,text=He'NnKaNn}}
+\dviaviStill{24}{\fbox{\Large rule test}\quad\rule{2cm}{1pt}}
+\end{document}

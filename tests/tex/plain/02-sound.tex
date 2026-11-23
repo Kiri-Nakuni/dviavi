@@ -1,0 +1,11 @@
+% plain: sound commands act once per frames command, between frames they ride on the next frame
+%! engine: euptex
+%! pages: 4
+%! special: dviavi: mark name=a = 1
+%! special: dviavi: speak ch=x text=KoNnNiChiWa = 1
+%! special: dviavi: tone inst=sine freq=440 dur=1s = 1
+\input dviavi
+\dviaviStill{1}{x}
+\dviaviMark{a}
+\dviaviStill{3}{y\speak{ch=x, text=KoNnNiChiWa}\dviaviTone{sine}{440}{1s}}
+\bye

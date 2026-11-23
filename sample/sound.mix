@@ -1,0 +1,8 @@
+% test mix
+inst lead { wave=square duty=0.25 adsr=5ms,80ms,0.6,80ms gain=-10dB }
+voice example { f0=200 mora=150ms formant=1.1 tone normal { f0x=1 range=4st } }
+track bgm gain=-3dB pan=-0.3
+  @start lead t150 o5 l8 c d e g <c e g>4 r4
+    o+ c4
+track tri
+  @0.5s triangle t120 o4 l16 c e g o+ c

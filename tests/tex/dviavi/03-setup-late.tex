@@ -1,0 +1,10 @@
+% \dviaviSetup after the first frame is an error
+%! pages: 2
+%! errors: 1
+\documentclass[dvipdfmx]{jsarticle}
+\usepackage[paperwidth=160mm,paperheight=90mm]{dviavi}
+\begin{document}
+\dviaviFrame{x}
+\dviaviSetup{fps=30}
+\dviaviFrame{y}
+\end{document}

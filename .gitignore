@@ -1,0 +1,9 @@
+/target
+# TeX and dviavi outputs
+*.aux
+*.log
+*.dvi
+*.avi
+*.skkr
+*.skkd
+__pycache__/
