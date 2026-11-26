@@ -1,10 +1,20 @@
 # dviavi
 
-DVI から AVI 動画を作る。**1 ページ = 1 フレーム**。音は sound.mix と `\special{dviavi: …}` から合成する。
-中間画像ファイルは作らず、ffmpeg も組み込まない（外部音声ファイルのデコードにだけ、あれば `ffmpeg` コマンドを使う）。
+## DVIからAVI動画を作るDVIウェアです。
 
-詳しいリファレンス: [doc/dviavi.md](doc/dviavi.md)（ツール・TeX マクロ・special・UST ツール）、
-[doc/sound-mix.md](doc/sound-mix.md)（sound.mix・MML・声と音素）。声の調整は `dviavi say` と `tools/voice-tuner.html`。
+**1ページ=1フレーム**
+
+音はsound.mixからの入力と`\special{dviavi: …}`から合成します。
+
+中間画像ファイルは生成せず、ffmpegにもデフォルトでは依存しないようになっています(外部音声読み込みに際してはffmpegが必要です)
+
+詳しいリファレンス:
+- [doc/dviavi.md](doc/dviavi.md)
+  （ツール・TeX マクロ・special・UST ツール）、
+- [doc/sound-mix.md](doc/sound-mix.md)
+  (sound.mix・MML・声と音素)
+
+声の調整は `dviavi say` と `tools/voice-tuner.html`。
 
 画面の大きさの紙のクラス（`avi.cls`）、animate 互換のアニメーション（`avianim.sty`）、声の定義と歌（`avivoice.sty`）は
 [avipackages](https://github.com/Kiri-Nakuni/avipackages) リポジトリにある。
@@ -39,7 +49,7 @@ target/release/dviavi foo.dvi        # → foo.avi（-o で出力先指定）
 - 音声: 16bit ステレオ PCM、`rate` Hz。長さは映像と同じ（はみ出した音は切れる）。
 - AVI 1.0（2 GiB まで）。
 
-## TeX 側
+## TeX 側(dviavi.sty)
 
 | 命令 | 意味 |
 |---|---|
