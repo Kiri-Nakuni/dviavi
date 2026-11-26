@@ -7,3 +7,5 @@
 *.skkr
 *.skkd
 __pycache__/
+# notes for the maintainer, kept out of the repository
+ROADMAP.md
